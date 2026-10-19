@@ -145,42 +145,113 @@ def get_laptop_camera_index():
 # Sci-Fi Hologram HUD Drawing Functions (Iron Man / Cyberpunk Aesthetics)
 # =============================================================================
 
-def draw_corner_brackets(img, x1, y1, x2, y2, color=(255, 220, 0), length=25, thickness=2):
-    """Draw futuristic sci-fi corner brackets instead of a plain rectangle"""
+def draw_corner_brackets(img, x1, y1, x2, y2, color=(0, 240, 255), length=25, thickness=2):
+    """Draw futuristic Iron Man holographic corner brackets with tactical grid marks"""
     # Top-Left
     cv2.line(img, (x1, y1), (x1 + length, y1), color, thickness)
     cv2.line(img, (x1, y1), (x1, y1 + length), color, thickness)
+    cv2.circle(img, (x1, y1), 3, color, cv2.FILLED)
     # Top-Right
     cv2.line(img, (x2, y1), (x2 - length, y1), color, thickness)
     cv2.line(img, (x2, y1), (x2, y1 + length), color, thickness)
+    cv2.circle(img, (x2, y1), 3, color, cv2.FILLED)
     # Bottom-Left
     cv2.line(img, (x1, y2), (x1 + length, y2), color, thickness)
     cv2.line(img, (x1, y2), (x1, y2 - length), color, thickness)
+    cv2.circle(img, (x1, y2), 3, color, cv2.FILLED)
     # Bottom-Right
     cv2.line(img, (x2, y2), (x2 - length, y2), color, thickness)
     cv2.line(img, (x2, y2), (x2, y2 - length), color, thickness)
+    cv2.circle(img, (x2, y2), 3, color, cv2.FILLED)
 
-    # Subtle boundary lines
+    # Subtle boundary lines with cyan tint
     overlay = img.copy()
     cv2.rectangle(overlay, (x1, y1), (x2, y2), color, 1)
-    cv2.addWeighted(overlay, 0.25, img, 0.75, 0, img)
+    cv2.addWeighted(overlay, 0.20, img, 0.80, 0, img)
 
-    # Tech Label
-    cv2.putText(img, "TARGET ZONE // 1920x1080", (x1 + 8, y1 - 8),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.42, color, 1, cv2.LINE_AA)
+    # Tactical HUD Coordinates Tag
+    cv2.putText(img, "STARK TGT ZONE // 1920x1080", (x1 + 8, y1 - 8),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.38, (0, 255, 255), 1, cv2.LINE_AA)
 
-def draw_arc_reactor(img, center_x, center_y, angle, radius=28, color=(255, 230, 0)):
-    """Draw an animated rotating holographic arc-reactor ring on the palm"""
+def draw_arc_reactor(img, center_x, center_y, frame_count, radius=30):
+    """Draw an authentic multi-layer dual counter-rotating Stark Arc Reactor on palm center"""
     cx, cy = int(center_x), int(center_y)
     
-    # Outer dashed ring with rotating tick arcs
-    cv2.ellipse(img, (cx, cy), (radius, radius), angle, 0, 70, color, 2, cv2.LINE_AA)
-    cv2.ellipse(img, (cx, cy), (radius, radius), angle, 120, 190, color, 2, cv2.LINE_AA)
-    cv2.ellipse(img, (cx, cy), (radius, radius), angle, 240, 310, color, 2, cv2.LINE_AA)
+    # Outer clockwise ring (3 segmented arcs)
+    ang1 = (frame_count * 5) % 360
+    cv2.ellipse(img, (cx, cy), (radius, radius), ang1, 0, 75, (0, 240, 255), 2, cv2.LINE_AA)
+    cv2.ellipse(img, (cx, cy), (radius, radius), ang1, 120, 195, (0, 240, 255), 2, cv2.LINE_AA)
+    cv2.ellipse(img, (cx, cy), (radius, radius), ang1, 240, 315, (0, 240, 255), 2, cv2.LINE_AA)
 
-    # Inner core
-    cv2.circle(img, (cx, cy), radius // 2, (0, 255, 255), 1, cv2.LINE_AA)
-    cv2.circle(img, (cx, cy), 3, (255, 255, 255), cv2.FILLED)
+    # Middle counter-clockwise ring (4 segmented arcs)
+    ang2 = (-frame_count * 4) % 360
+    r_mid = max(10, radius - 8)
+    cv2.ellipse(img, (cx, cy), (r_mid, r_mid), ang2, 0, 50, (255, 200, 0), 1, cv2.LINE_AA)
+    cv2.ellipse(img, (cx, cy), (r_mid, r_mid), ang2, 90, 140, (255, 200, 0), 1, cv2.LINE_AA)
+    cv2.ellipse(img, (cx, cy), (r_mid, r_mid), ang2, 180, 230, (255, 200, 0), 1, cv2.LINE_AA)
+    cv2.ellipse(img, (cx, cy), (r_mid, r_mid), ang2, 270, 320, (255, 200, 0), 1, cv2.LINE_AA)
+
+    # 6 Radial power nodes
+    for k in range(6):
+        node_ang = math.radians(ang1 + k * 60)
+        nx = int(cx + (radius - 4) * math.cos(node_ang))
+        ny = int(cy + (radius - 4) * math.sin(node_ang))
+        cv2.circle(img, (nx, ny), 2, (0, 255, 255), cv2.FILLED, cv2.LINE_AA)
+
+    # Core energy emitter
+    cv2.circle(img, (cx, cy), 10, (255, 240, 200), 1, cv2.LINE_AA)
+    cv2.circle(img, (cx, cy), 5, (0, 255, 255), cv2.FILLED, cv2.LINE_AA)
+    cv2.circle(img, (cx, cy), 2, (255, 255, 255), cv2.FILLED, cv2.LINE_AA)
+
+def draw_ironman_target_lock(img, x, y, frame_count, target_x, target_y):
+    """Draw Iron Man animated holographic target lock reticle around index finger"""
+    ix, iy = int(x), int(y)
+    rot = (frame_count * 3) % 360
+
+    # Rotating 4-corner diamond tick marks
+    for angle_deg in [rot, rot + 90, rot + 180, rot + 270]:
+        rad = math.radians(angle_deg)
+        px = int(ix + 18 * math.cos(rad))
+        py = int(iy + 18 * math.sin(rad))
+        cv2.circle(img, (px, py), 2, (0, 255, 255), cv2.FILLED, cv2.LINE_AA)
+
+    # Central Reticle Ring & Crosshair Lines
+    cv2.circle(img, (ix, iy), 12, (0, 220, 255), 1, cv2.LINE_AA)
+    cv2.line(img, (ix - 18, iy), (ix - 8, iy), (0, 255, 255), 1, cv2.LINE_AA)
+    cv2.line(img, (ix + 8, iy), (ix + 18, iy), (0, 255, 255), 1, cv2.LINE_AA)
+    cv2.line(img, (ix, iy - 18), (ix, iy - 8), (0, 255, 255), 1, cv2.LINE_AA)
+    cv2.line(img, (ix, iy + 8), (ix, iy + 18), (0, 255, 255), 1, cv2.LINE_AA)
+    cv2.circle(img, (ix, iy), 3, (255, 0, 200), cv2.FILLED, cv2.LINE_AA)
+
+    # Floating Holographic Data Callout
+    tx = ix + 24
+    ty = iy - 12
+    cv2.line(img, (ix + 14, iy - 6), (tx - 4, ty + 4), (0, 255, 255), 1, cv2.LINE_AA)
+    cv2.rectangle(img, (tx - 2, ty - 12), (tx + 120, ty + 6), (20, 20, 35), -1)
+    cv2.rectangle(img, (tx - 2, ty - 12), (tx + 120, ty + 6), (0, 255, 255), 1, cv2.LINE_AA)
+    cv2.putText(img, f"LOCK [{target_x},{target_y}]", (tx + 2, ty),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.34, (0, 255, 255), 1, cv2.LINE_AA)
+
+def draw_fist_charge_meter(img, palm_cx, palm_cy, progress, remaining):
+    """Draw Iron Man Repulsor overload charging ring when fist is clenched"""
+    cx, cy = int(palm_cx), int(palm_cy)
+    
+    # Outer Danger Ring
+    cv2.circle(img, (cx, cy), 36, (0, 0, 150), 1, cv2.LINE_AA)
+    
+    # Progress Arc from -90 deg filling up to 360 deg
+    sweep_angle = int(360 * max(0.0, min(1.0, progress)))
+    if sweep_angle > 0:
+        cv2.ellipse(img, (cx, cy), (36, 36), -90, 0, sweep_angle, (0, 0, 255), 4, cv2.LINE_AA)
+
+    # Inner core pulse
+    core_color = (0, 0, 255) if (int(remaining * 10) % 2 == 0) else (0, 120, 255)
+    cv2.circle(img, (cx, cy), 14, core_color, cv2.FILLED, cv2.LINE_AA)
+    cv2.circle(img, (cx, cy), 5, (255, 255, 255), cv2.FILLED, cv2.LINE_AA)
+
+    # Warning Text Tag
+    txt = f"LOCKDOWN {int(progress * 100)}%"
+    cv2.putText(img, txt, (cx - 44, cy - 44), cv2.FONT_HERSHEY_SIMPLEX, 0.40, (0, 0, 255), 1, cv2.LINE_AA)
 
 def draw_energy_trail(img, trail_points):
     """Draw smooth glowing energy particles following the index finger tip"""
@@ -191,64 +262,67 @@ def draw_energy_trail(img, trail_points):
         color = (int(255 * alpha), int(180 * alpha), int(255 * (1 - alpha)))
         cv2.circle(img, (int(pt[0]), int(pt[1])), r, color, cv2.FILLED, cv2.LINE_AA)
 
-def draw_glass_hud(img, mode_text, mode_color, fps, w_cam, h_cam, active_cam_name="Integrated", eye_enabled=True, ear_info=None, alert_text=None):
-    """Render semi-transparent glassmorphic top header and bottom controls HUD"""
+def draw_glass_hud(img, mode_text, mode_color, fps, w_cam, h_cam, active_cam_name="Integrated", eye_enabled=True, ear_info=None, alert_text=None, frame_count=0):
+    """Render authentic Stark Industries JARVIS holographic HUD header and footer"""
     overlay = img.copy()
     
     # Top Header Bar (dark semi-transparent glass)
-    cv2.rectangle(overlay, (0, 0), (w_cam, 52), (15, 15, 25), -1)
+    cv2.rectangle(overlay, (0, 0), (w_cam, 54), (12, 14, 24), -1)
     # Bottom Controls Bar
-    cv2.rectangle(overlay, (0, h_cam - 30), (w_cam, h_cam), (15, 15, 25), -1)
+    cv2.rectangle(overlay, (0, h_cam - 30), (w_cam, h_cam), (12, 14, 24), -1)
     
-    cv2.addWeighted(overlay, 0.70, img, 0.30, 0, img)
+    cv2.addWeighted(overlay, 0.72, img, 0.28, 0, img)
 
-    # Top neon border line
-    cv2.line(img, (0, 52), (w_cam, 52), (255, 200, 0), 1, cv2.LINE_AA)
-    cv2.line(img, (0, h_cam - 30), (w_cam, h_cam - 30), (80, 80, 80), 1, cv2.LINE_AA)
+    # Holographic neon border lines with Stark Gold accent
+    cv2.line(img, (0, 54), (w_cam, 54), (0, 220, 255), 1, cv2.LINE_AA)
+    cv2.line(img, (0, h_cam - 30), (w_cam, h_cam - 30), (70, 70, 80), 1, cv2.LINE_AA)
 
-    # Left: Brand Badge
-    cv2.circle(img, (18, 26), 6, (0, 255, 128), cv2.FILLED, cv2.LINE_AA)
-    cv2.putText(img, "AEROGLIDE AI", (32, 32), cv2.FONT_HERSHEY_DUPLEX, 0.55, (255, 255, 255), 1, cv2.LINE_AA)
+    # Left: Stark Industries / JARVIS Reactor Badge
+    rot_badge = (frame_count * 6) % 360
+    cv2.ellipse(img, (20, 27), (8, 8), rot_badge, 0, 180, (0, 255, 128), 2, cv2.LINE_AA)
+    cv2.circle(img, (20, 27), 3, (0, 255, 255), cv2.FILLED, cv2.LINE_AA)
+    cv2.putText(img, "JARVIS // MARK-L", (34, 33), cv2.FONT_HERSHEY_DUPLEX, 0.48, (255, 255, 255), 1, cv2.LINE_AA)
 
-    # Center: Mode Badge Pill
+    # Center: Mode Badge with Chamfered Cyberpunk Pill
     badge_w = 210
     bx1 = (w_cam - badge_w) // 2
     bx2 = bx1 + badge_w
-    cv2.rectangle(img, (bx1, 10), (bx2, 42), (30, 30, 45), -1)
-    cv2.rectangle(img, (bx1, 10), (bx2, 42), mode_color, 1, cv2.LINE_AA)
+    cv2.rectangle(img, (bx1, 11), (bx2, 43), (25, 28, 42), -1)
+    cv2.rectangle(img, (bx1, 11), (bx2, 43), mode_color, 1, cv2.LINE_AA)
+    cv2.rectangle(img, (bx1 + 2, 13), (bx2 - 2, 41), (0, 120, 150), 1, cv2.LINE_AA)
     
-    text_size = cv2.getTextSize(mode_text, cv2.FONT_HERSHEY_SIMPLEX, 0.50, 1)[0]
+    text_size = cv2.getTextSize(mode_text, cv2.FONT_HERSHEY_SIMPLEX, 0.48, 1)[0]
     tx = bx1 + (badge_w - text_size[0]) // 2
-    cv2.putText(img, mode_text, (tx, 29), cv2.FONT_HERSHEY_SIMPLEX, 0.50, mode_color, 1, cv2.LINE_AA)
+    cv2.putText(img, mode_text, (tx, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.48, mode_color, 1, cv2.LINE_AA)
 
-    # Right: Tech Diagnostics
+    # Right: Diagnostics & Stark Reactor Power Gauge
     eye_label = "EYE: ON" if eye_enabled else "EYE: OFF"
     eye_color = (0, 255, 128) if eye_enabled else (120, 120, 120)
-    cv2.putText(img, f"FPS: {int(fps)}", (w_cam - 110, 18), cv2.FONT_HERSHEY_SIMPLEX, 0.36, (0, 255, 255), 1, cv2.LINE_AA)
-    cv2.putText(img, eye_label, (w_cam - 110, 32), cv2.FONT_HERSHEY_SIMPLEX, 0.36, eye_color, 1, cv2.LINE_AA)
-    cv2.putText(img, f"CAM: {active_cam_name}", (w_cam - 110, 46), cv2.FONT_HERSHEY_SIMPLEX, 0.33, (180, 180, 180), 1, cv2.LINE_AA)
+    cv2.putText(img, f"FPS: {int(fps)}", (w_cam - 110, 18), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (0, 255, 255), 1, cv2.LINE_AA)
+    cv2.putText(img, eye_label, (w_cam - 110, 32), cv2.FONT_HERSHEY_SIMPLEX, 0.35, eye_color, 1, cv2.LINE_AA)
+    cv2.putText(img, f"CAM: {active_cam_name}", (w_cam - 110, 46), cv2.FONT_HERSHEY_SIMPLEX, 0.32, (180, 180, 180), 1, cv2.LINE_AA)
 
-    # Display Live EAR Diagnostics if eye tracking is enabled
+    # Live EAR Diagnostics
     if eye_enabled:
         if ear_info is not None:
             l_e, r_e, b_e, is_lw, is_rw = ear_info
             l_col = (0, 255, 0) if is_lw else (220, 220, 220)
             r_col = (0, 0, 255) if is_rw else (220, 220, 220)
             ear_txt = f"EAR L:[{l_e:.2f}] R:[{r_e:.2f}]"
-            cv2.putText(img, ear_txt, (150, 46), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (0, 255, 220), 1, cv2.LINE_AA)
+            cv2.putText(img, ear_txt, (148, 47), cv2.FONT_HERSHEY_SIMPLEX, 0.34, (0, 255, 220), 1, cv2.LINE_AA)
         else:
-            cv2.putText(img, "EYE: NO FACE", (150, 46), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (0, 165, 255), 1, cv2.LINE_AA)
+            cv2.putText(img, "EYE: NO FACE", (148, 47), cv2.FONT_HERSHEY_SIMPLEX, 0.34, (0, 165, 255), 1, cv2.LINE_AA)
 
-    # Center Screen Alert Banner for Clicks
+    # Center Screen Glowing Alert Banner
     if alert_text:
-        alert_w = 260
+        alert_w = 270
         ax1 = (w_cam - alert_w) // 2
         ax2 = ax1 + alert_w
-        cv2.rectangle(img, (ax1, 62), (ax2, 92), (0, 30, 0) if "LEFT" in alert_text else (0, 0, 30), -1)
-        cv2.rectangle(img, (ax1, 62), (ax2, 92), (0, 255, 0) if "LEFT" in alert_text else (0, 0, 255), 2, cv2.LINE_AA)
-        a_size = cv2.getTextSize(alert_text, cv2.FONT_HERSHEY_SIMPLEX, 0.50, 1)[0]
+        cv2.rectangle(img, (ax1, 64), (ax2, 96), (0, 35, 15) if "LEFT" in alert_text else (0, 0, 35), -1)
+        cv2.rectangle(img, (ax1, 64), (ax2, 96), (0, 255, 128) if "LEFT" in alert_text else (0, 0, 255), 2, cv2.LINE_AA)
+        a_size = cv2.getTextSize(alert_text, cv2.FONT_HERSHEY_SIMPLEX, 0.48, 1)[0]
         atx = ax1 + (alert_w - a_size[0]) // 2
-        cv2.putText(img, alert_text, (atx, 82), cv2.FONT_HERSHEY_SIMPLEX, 0.50, (255, 255, 255), 1, cv2.LINE_AA)
+        cv2.putText(img, alert_text, (atx, 84), cv2.FONT_HERSHEY_SIMPLEX, 0.48, (255, 255, 255), 1, cv2.LINE_AA)
 
     # Bottom Cheatsheet text
     shortcuts = "[Q] Exit  |  [H] Hide Tray  |  [B] Eye Click  |  [C] Cam  |  [+/-] Sens"
@@ -469,8 +543,7 @@ def main():
                 x0, y0 = lm_list[4][1], lm_list[4][2]    # Thumb tip
 
                 # Animated Holographic Arc Reactor on palm center (Landmark 9)
-                reactor_angle = (frame_count * 6) % 360
-                draw_arc_reactor(img, lm_list[9][1], lm_list[9][2], reactor_angle, radius=26, color=(255, 230, 0))
+                draw_arc_reactor(img, lm_list[9][1], lm_list[9][2], frame_count, radius=30)
 
                 fingers = detector.fingers_up()
 
@@ -510,7 +583,7 @@ def main():
                 )
 
                 # -------------------------------------------------------------
-                # 0. FIST CLENCH: Lock Screen (Win + L) with Red Warning Ring
+                # 0. FIST CLENCH: Lock Screen (Win + L) with Iron Man Charge Meter
                 # -------------------------------------------------------------
                 if is_fist:
                     scroll_anchor_y = None
@@ -519,11 +592,11 @@ def main():
 
                     elapsed_fist = now - fist_start_time
                     remaining = max(0.0, FIST_HOLD_DURATION - elapsed_fist)
+                    progress = min(elapsed_fist / FIST_HOLD_DURATION, 1.0)
 
                     palm_cx = int(lm_list[9][1])
                     palm_cy = int(lm_list[9][2])
-                    cv2.circle(img, (palm_cx, palm_cy), 32, (0, 0, 255), 3, cv2.LINE_AA)
-                    cv2.circle(img, (palm_cx, palm_cy), 10, (0, 0, 255), cv2.FILLED, cv2.LINE_AA)
+                    draw_fist_charge_meter(img, palm_cx, palm_cy, progress, remaining)
 
                     mode_text = f"LOCKING IN {remaining:.1f}s"
                     mode_color = (0, 0, 255)
@@ -546,7 +619,8 @@ def main():
                     pass
                 elif is_left_touch:
                     scroll_anchor_y = None
-                    cv2.circle(img, (int(line_pinch[4]), int(line_pinch[5])), 14, (0, 255, 0), cv2.FILLED, cv2.LINE_AA)
+                    cv2.circle(img, (int(line_pinch[4]), int(line_pinch[5])), 16, (0, 255, 128), cv2.FILLED, cv2.LINE_AA)
+                    cv2.circle(img, (int(line_pinch[4]), int(line_pinch[5])), 24, (0, 255, 255), 1, cv2.LINE_AA)
                     if not click_pressed:
                         hardware_left_click()
                         click_pressed = True
@@ -561,7 +635,8 @@ def main():
                 # -------------------------------------------------------------
                 elif is_right_touch:
                     scroll_anchor_y = None
-                    cv2.circle(img, (int(line_rc[4]), int(line_rc[5])), 12, (0, 0, 255), cv2.FILLED, cv2.LINE_AA)
+                    cv2.circle(img, (int(line_rc[4]), int(line_rc[5])), 14, (0, 0, 255), cv2.FILLED, cv2.LINE_AA)
+                    cv2.circle(img, (int(line_rc[4]), int(line_rc[5])), 22, (0, 120, 255), 1, cv2.LINE_AA)
                     if not rc_pressed:
                         hardware_right_click()
                         rc_pressed = True
@@ -608,9 +683,8 @@ def main():
                     trail_points.append((x1, y1))
                     draw_energy_trail(img, trail_points)
 
-                    # Target reticle on index finger
-                    cv2.circle(img, (int(x1), int(y1)), 8, (255, 0, 220), cv2.FILLED, cv2.LINE_AA)
-                    cv2.circle(img, (int(x1), int(y1)), 14, (0, 255, 255), 1, cv2.LINE_AA)
+                    # Iron Man Holographic Target Lock Reticle
+                    draw_ironman_target_lock(img, x1, y1, frame_count, target_x, target_y)
 
                     mode_text = f"TARGET [{target_x}, {target_y}]"
                     mode_color = (0, 255, 255)
@@ -632,7 +706,7 @@ def main():
             # Render Sci-Fi Glassmorphic HUD Overlays
             cam_label = "BUILT-IN" if cam_index == 1 else f"DEV_{cam_index}"
             if hud_visible:
-                draw_glass_hud(img, mode_text, mode_color, fps, w_cam, h_cam, active_cam_name=cam_label, eye_enabled=eye_click_enabled, ear_info=ear_info, alert_text=alert_text)
+                draw_glass_hud(img, mode_text, mode_color, fps, w_cam, h_cam, active_cam_name=cam_label, eye_enabled=eye_click_enabled, ear_info=ear_info, alert_text=alert_text, frame_count=frame_count)
                 cv2.imshow(WINDOW_TITLE, img)
 
                 # Keyboard Controls
