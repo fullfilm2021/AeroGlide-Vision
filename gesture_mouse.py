@@ -11,6 +11,7 @@ import pyautogui
 import math
 from collections import deque
 from HandTrackingModule import HandDetector
+from FaceTrackingModule import FaceEyeDetector
 
 # Set Windows DPI Awareness so full resolution is tracked accurately
 try:
@@ -142,7 +143,7 @@ def draw_energy_trail(img, trail_points):
         color = (int(255 * alpha), int(180 * alpha), int(255 * (1 - alpha)))
         cv2.circle(img, (int(pt[0]), int(pt[1])), r, color, cv2.FILLED, cv2.LINE_AA)
 
-def draw_glass_hud(img, mode_text, mode_color, fps, w_cam, h_cam, active_cam_name="Integrated"):
+def draw_glass_hud(img, mode_text, mode_color, fps, w_cam, h_cam, active_cam_name="Integrated", eye_enabled=True):
     """Render semi-transparent glassmorphic top header and bottom controls HUD"""
     overlay = img.copy()
     
@@ -168,17 +169,20 @@ def draw_glass_hud(img, mode_text, mode_color, fps, w_cam, h_cam, active_cam_nam
     cv2.rectangle(img, (bx1, 10), (bx2, 42), (30, 30, 45), -1)
     cv2.rectangle(img, (bx1, 10), (bx2, 42), mode_color, 1, cv2.LINE_AA)
     
-    text_size = cv2.getTextSize(mode_text, cv2.FONT_HERSHEY_SIMPLEX, 0.52, 1)[0]
+    text_size = cv2.getTextSize(mode_text, cv2.FONT_HERSHEY_SIMPLEX, 0.50, 1)[0]
     tx = bx1 + (badge_w - text_size[0]) // 2
-    cv2.putText(img, mode_text, (tx, 29), cv2.FONT_HERSHEY_SIMPLEX, 0.52, mode_color, 1, cv2.LINE_AA)
+    cv2.putText(img, mode_text, (tx, 29), cv2.FONT_HERSHEY_SIMPLEX, 0.50, mode_color, 1, cv2.LINE_AA)
 
     # Right: Tech Diagnostics
-    cv2.putText(img, f"FPS: {int(fps)}", (w_cam - 110, 24), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 255, 255), 1, cv2.LINE_AA)
-    cv2.putText(img, f"CAM: {active_cam_name}", (w_cam - 110, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.38, (180, 180, 180), 1, cv2.LINE_AA)
+    eye_label = "EYE: ON" if eye_enabled else "EYE: OFF"
+    eye_color = (0, 255, 128) if eye_enabled else (120, 120, 120)
+    cv2.putText(img, f"FPS: {int(fps)}", (w_cam - 118, 18), cv2.FONT_HERSHEY_SIMPLEX, 0.36, (0, 255, 255), 1, cv2.LINE_AA)
+    cv2.putText(img, eye_label, (w_cam - 118, 32), cv2.FONT_HERSHEY_SIMPLEX, 0.36, eye_color, 1, cv2.LINE_AA)
+    cv2.putText(img, f"CAM: {active_cam_name}", (w_cam - 118, 46), cv2.FONT_HERSHEY_SIMPLEX, 0.33, (180, 180, 180), 1, cv2.LINE_AA)
 
     # Bottom Cheatsheet text
-    shortcuts = "[Q] Exit  |  [C] Switch Cam  |  [+/-] Sens  |  [[ / ]] Smooth"
-    cv2.putText(img, shortcuts, (15, h_cam - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.40, (190, 190, 190), 1, cv2.LINE_AA)
+    shortcuts = "[Q] Exit  |  [B] Eye Click  |  [C] Cam  |  [+/-] Sens  |  [[ / ]] Smooth"
+    cv2.putText(img, shortcuts, (15, h_cam - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.38, (190, 190, 190), 1, cv2.LINE_AA)
 
 def print_stylish_banner(w_screen, h_screen):
     """Futuristic ASCII Art Banner for Terminal"""
@@ -193,7 +197,7 @@ def print_stylish_banner(w_screen, h_screen):
             >> NEXT-GEN AI HAND GESTURE VIRTUAL MOUSE <<
 ======================================================================
   [+] Screen Resolution : {w_screen} x {h_screen}
-  [+] Active Engine     : MediaPipe Hand ML (21 Keypoints)
+  [+] Active Engine     : MediaPipe Hand + FaceMesh ML
   [+] Cursor Engine     : Adaptive Deadzone Filter (Zero Jitter)
 
   GESTURE CONTROLS:
@@ -202,8 +206,12 @@ def print_stylish_banner(w_screen, h_screen):
   * Index + Middle fingers up          -> Smooth Scroll (Up / Down)
   * Thumb + Middle pinch (Middle UP)   -> Right Click
   * Fist Clench (hold 0.5s)            -> Screen Lock (Win + L)
+  * Left Eye Wink                      -> Instant Left Click
+  * Right Eye Wink                     -> Instant Right Click
+  * Intentional Blink (both 0.35s)     -> Left Click
 
   KEYBOARD SHORTCUTS:
+  * 'b'                                -> Toggle Eye Blink Click (ON/OFF)
   * '+' / '-'                          -> Adjust Screen Sensitivity
   * '[' / ']'                          -> Adjust Smoothing & Speed
   * 'c'                                -> Cycle Video Input Device
@@ -262,6 +270,15 @@ def main():
     cap.set(4, h_cam)
 
     detector = HandDetector(max_hands=1, detection_con=0.7, track_con=0.7)
+    face_detector = FaceEyeDetector(max_faces=1, detection_con=0.6, track_con=0.6)
+
+    eye_click_enabled = True
+    l_wink_pressed = False
+    r_wink_pressed = False
+    blink_start_time = None
+    BLINK_HOLD_DURATION = 0.35
+    BLINK_RESET_EAR = 0.22
+
     print_stylish_banner(w_screen, h_screen)
 
     while True:
@@ -273,14 +290,50 @@ def main():
                 continue
 
             frame_count += 1
+            now = time.time()
             img = cv2.flip(img, 1)
+
+            mode_text = "IDLE // READY"
+            mode_color = (180, 180, 180)
+
+            # Eye Blink & Wink Detection (AI Vision)
+            if eye_click_enabled:
+                face_detector.process(img)
+                left_ear, right_ear, is_l_wink, is_r_wink, is_both_blink, l_center, r_center = face_detector.get_eye_status(img, draw=True)
+
+                if is_l_wink:
+                    if not l_wink_pressed:
+                        pyautogui.click()
+                        l_wink_pressed = True
+                        mode_text = "EYE LEFT CLICK"
+                        mode_color = (0, 255, 0)
+                elif left_ear >= BLINK_RESET_EAR:
+                    l_wink_pressed = False
+
+                if is_r_wink:
+                    if not r_wink_pressed:
+                        pyautogui.rightClick()
+                        r_wink_pressed = True
+                        mode_text = "EYE RIGHT CLICK"
+                        mode_color = (0, 0, 255)
+                elif right_ear >= BLINK_RESET_EAR:
+                    r_wink_pressed = False
+
+                if is_both_blink:
+                    if blink_start_time is None:
+                        blink_start_time = now
+                    elif (now - blink_start_time) >= BLINK_HOLD_DURATION and not l_wink_pressed:
+                        pyautogui.click()
+                        l_wink_pressed = True
+                        blink_start_time = None
+                        mode_text = "EYE BLINK CLICK"
+                        mode_color = (0, 255, 128)
+                else:
+                    blink_start_time = None
 
             # Find Hand Landmarks with Cyberpunk styling
             img = detector.find_hands(img, draw=True)
             lm_list = detector.find_position(img, draw=False)
-
-            mode_text = "IDLE // READY"
-            mode_color = (180, 180, 180)
 
             # Active boundary box coordinates
             box_x1 = margin_x
@@ -290,8 +343,6 @@ def main():
 
             # Draw Sci-Fi Target Brackets
             draw_corner_brackets(img, box_x1, box_y1, box_x2, box_y2, color=(255, 220, 0), length=22, thickness=2)
-
-            now = time.time()
 
             if len(lm_list) >= 21:
                 x1, y1 = lm_list[8][1], lm_list[8][2]    # Index tip
@@ -461,7 +512,7 @@ def main():
 
             # Render Sci-Fi Glassmorphic HUD Overlays
             cam_label = "BUILT-IN" if cam_index == 1 else f"DEV_{cam_index}"
-            draw_glass_hud(img, mode_text, mode_color, fps, w_cam, h_cam, active_cam_name=cam_label)
+            draw_glass_hud(img, mode_text, mode_color, fps, w_cam, h_cam, active_cam_name=cam_label, eye_enabled=eye_click_enabled)
 
             cv2.imshow("AeroGlide-Vision // Holographic HUD", img)
 
@@ -469,6 +520,10 @@ def main():
             key = cv2.waitKey(1) & 0xFF
             if key == ord('q'):
                 break
+            elif key == ord('b'):
+                eye_click_enabled = not eye_click_enabled
+                status_txt = "ENABLED" if eye_click_enabled else "DISABLED"
+                print(f"[HUD] Eye Blink Click: {status_txt}")
             elif key == ord('c'):
                 cap.release()
                 cam_index = (cam_index + 1) % 3
