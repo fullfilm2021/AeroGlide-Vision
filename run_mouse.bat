@@ -1,4 +1,4 @@
 @echo off
-echo Starting Hand Gesture Mouse Controller...
+title AeroGlide-Vision // Next-Gen AI Hand Gesture Controller
 python gesture_mouse.py
 pause

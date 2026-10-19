@@ -1,3 +1,7 @@
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+os.environ['GLOG_minloglevel'] = '3'
+
 # pyrefly: ignore[missing-import]
 import cv2
 # pyrefly: ignore[missing-import]
@@ -33,10 +37,11 @@ class HandDetector:
         if self.results and self.results.multi_hand_landmarks:
             for hand_lms in self.results.multi_hand_landmarks:
                 if draw:
+                    # Cyberpunk Neon Styling for Hand Skeleton
                     self.mp_draw.draw_landmarks(
                         img, hand_lms, self.mp_hands.HAND_CONNECTIONS,
-                        self.mp_draw.DrawingSpec(color=(0, 255, 128), thickness=2, circle_radius=3),
-                        self.mp_draw.DrawingSpec(color=(255, 200, 0), thickness=2, circle_radius=2)
+                        self.mp_draw.DrawingSpec(color=(255, 220, 0), thickness=2, circle_radius=3),
+                        self.mp_draw.DrawingSpec(color=(0, 255, 255), thickness=2, circle_radius=2)
                     )
         return img
 
@@ -54,7 +59,7 @@ class HandDetector:
                     cx, cy = float(lm.x * w), float(lm.y * h)
                     self.lm_list.append([id, cx, cy])
                     if draw and id in self.tip_ids:
-                        cv2.circle(img, (int(cx), int(cy)), 7, (255, 0, 255), cv2.FILLED)
+                        cv2.circle(img, (int(cx), int(cy)), 6, (255, 0, 200), cv2.FILLED)
         return self.lm_list
 
     def fingers_up(self):
