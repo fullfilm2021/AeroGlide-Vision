@@ -1,4 +1,4 @@
-# AeroGlide-Vision 🖐️⚡
+# AeroGlide-Vision
 
 **AeroGlide-Vision** is a next-generation AI-powered hand gesture virtual mouse and holographic cursor controller built with Python, OpenCV, and MediaPipe. Control your computer mouse, click, and scroll smoothly in the air without touching any hardware.
 
@@ -32,6 +32,7 @@ python gesture_mouse.py
 | **Thumb + Index Pinch (<30px)** | **Left Click** | Touch thumb tip and index finger tip together for an instant left click. Separate fingers to click again. |
 | **Index + Middle Fingers Up** | **Scroll** | Move hand upward to scroll UP; move hand downward to scroll DOWN. |
 | **Thumb + Middle Touch** | **Right Click** | Keep middle finger extended and touch thumb to middle fingertip for right click. |
+| **Fist Clench (Hold 0.5s)** | **Lock Screen** | Make a tight fist to trigger instant Windows workstation lock (`Win + L`). A red HUD ring confirms before locking. |
 | **Key '+' or '-'** | **Sensitivity** | Increase or decrease cursor sensitivity in real-time. |
 | **Key '[' or ']'** | **Smoothness** | Adjust cursor smoothing (`[` for smoother, `]` for faster response). |
 | **Key 'c'** | **Switch Camera** | Toggle between laptop built-in webcam and external/virtual cameras. |

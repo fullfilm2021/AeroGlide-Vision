@@ -125,6 +125,12 @@ def main():
     scroll_anchor_y = None
     prev_time = time.time()
 
+    # Fist Clench Screen Lock state
+    fist_start_time = None
+    last_lock_time = 0.0
+    FIST_HOLD_DURATION = 0.55       # Hold fist for 0.55s to lock workstation
+    LOCK_COOLDOWN = 3.0             # Seconds between lock triggers
+
     # Gesture Thresholds
     CLICK_THRESHOLD = 30           # Instant click when fingers touch (< 30px)
     CLICK_RESET_THRESHOLD = 38     # Release distance to unlock next click (> 38px)
@@ -153,10 +159,11 @@ def main():
     print("2. Thumb + Index pinch              -> Left Click (Instant)")
     print("3. Index + Middle fingers up        -> Scroll (Hand Up = UP, Down = DOWN)")
     print("4. Thumb + Middle pinch (Middle UP) -> Right Click")
-    print("5. '+' or '-' on keyboard           -> Adjust Sensitivity")
-    print("6. '[' or ']' on keyboard           -> Adjust Smoothness")
-    print("7. 'c' on keyboard                  -> Switch Camera")
-    print("8. 'q' on keyboard                  -> Exit")
+    print("5. Fist Clench (hold 0.5s)          -> Lock Screen (Win + L)")
+    print("6. '+' or '-' on keyboard           -> Adjust Sensitivity")
+    print("7. '[' or ']' on keyboard           -> Adjust Smoothness")
+    print("8. 'c' on keyboard                  -> Switch Camera")
+    print("9. 'q' on keyboard                  -> Exit")
     print("=" * 65)
 
     while True:
@@ -209,11 +216,13 @@ def main():
                 rc_dist, img, line_rc = detector.find_distance(4, 12, img, draw=False)
 
                 # Intent classification
-                is_left_touch = pinch_dist < CLICK_THRESHOLD
+                is_fist = (fingers == [0, 0, 0, 0, 0])
+                is_left_touch = not is_fist and (pinch_dist < CLICK_THRESHOLD)
                 
                 # Right click requires middle finger to be UP/EXTENDED (fingers[2] == 1)
                 is_right_touch = (
-                    not is_left_touch 
+                    not is_fist
+                    and not is_left_touch 
                     and fingers[2] == 1 
                     and rc_dist < RIGHT_CLICK_THRESHOLD
                 )
@@ -226,7 +235,8 @@ def main():
 
                 # Scroll: Index and Middle UP, fingers open
                 is_scroll = (
-                    not is_left_touch 
+                    not is_fist
+                    and not is_left_touch 
                     and not is_right_touch 
                     and fingers[1] == 1 
                     and fingers[2] == 1 
@@ -235,16 +245,50 @@ def main():
 
                 # Cursor Move: Only Index finger is UP
                 is_cursor_only = (
-                    not is_left_touch 
+                    not is_fist
+                    and not is_left_touch 
                     and not is_right_touch 
                     and fingers[1] == 1 
                     and fingers[2] == 0
                 )
 
                 # -------------------------------------------------------------
+                # 0. FIST CLENCH: Lock Screen (Win + L) when held for 0.5s
+                # -------------------------------------------------------------
+                if is_fist:
+                    scroll_anchor_y = None
+                    if fist_start_time is None:
+                        fist_start_time = now
+
+                    elapsed_fist = now - fist_start_time
+                    remaining = max(0.0, FIST_HOLD_DURATION - elapsed_fist)
+
+                    # Red Iron Man targeting circle in center of palm
+                    palm_cx = int(lm_list[9][1])
+                    palm_cy = int(lm_list[9][2])
+                    cv2.circle(img, (palm_cx, palm_cy), 28, (0, 0, 255), 3)
+                    cv2.circle(img, (palm_cx, palm_cy), 8, (0, 0, 255), cv2.FILLED)
+
+                    mode_text = f"LOCKING IN {remaining:.1f}s"
+                    mode_color = (0, 0, 255)
+
+                    if elapsed_fist >= FIST_HOLD_DURATION and (now - last_lock_time > LOCK_COOLDOWN):
+                        mode_text = "SCREEN LOCKED!"
+                        try:
+                            ctypes.windll.user32.LockWorkStation()
+                        except Exception as lock_err:
+                            print(f"LockWorkStation error: {lock_err}")
+                        last_lock_time = now
+                        fist_start_time = None
+                else:
+                    fist_start_time = None
+
+                # -------------------------------------------------------------
                 # 1. LEFT CLICK: Thumb + Index touch (Instant click, smooth latch)
                 # -------------------------------------------------------------
-                if is_left_touch:
+                if is_fist:
+                    pass
+                elif is_left_touch:
                     scroll_anchor_y = None
                     cv2.circle(img, (int(line_pinch[4]), int(line_pinch[5])), 14, (0, 255, 0), cv2.FILLED)
                     if not click_pressed:
@@ -314,10 +358,11 @@ def main():
                     state = STATE_IDLE
             else:
                 # No hand detected: reset states
-                is_pinched = False
+                fist_start_time = None
+                click_pressed = False
+                rc_pressed = False
                 state = STATE_IDLE
                 scroll_anchor_y = None
-                pinch_start_time = None
                 cursor_filter.reset()
 
             # Calculate Frame Rate (FPS)
