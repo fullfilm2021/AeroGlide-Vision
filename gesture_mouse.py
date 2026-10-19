@@ -23,6 +23,36 @@ except Exception:
 pyautogui.FAILSAFE = False
 pyautogui.PAUSE = 0.001
 
+import winsound
+import threading
+
+def trigger_audio_click():
+    """Non-blocking subtle audio click sound"""
+    try:
+        threading.Thread(target=lambda: winsound.MessageBeep(0), daemon=True).start()
+    except Exception:
+        pass
+
+def hardware_left_click():
+    """Direct hardware level left click via Windows API"""
+    try:
+        ctypes.windll.user32.mouse_event(0x0002, 0, 0, 0, 0) # LEFTDOWN
+        time.sleep(0.012)
+        ctypes.windll.user32.mouse_event(0x0004, 0, 0, 0, 0) # LEFTUP
+    except Exception:
+        pyautogui.click()
+    trigger_audio_click()
+
+def hardware_right_click():
+    """Direct hardware level right click via Windows API"""
+    try:
+        ctypes.windll.user32.mouse_event(0x0008, 0, 0, 0, 0) # RIGHTDOWN
+        time.sleep(0.012)
+        ctypes.windll.user32.mouse_event(0x0010, 0, 0, 0, 0) # RIGHTUP
+    except Exception:
+        pyautogui.rightClick()
+    trigger_audio_click()
+
 def set_mouse_pos(x, y):
     """Direct hardware cursor movement via Windows API"""
     try:
@@ -143,7 +173,7 @@ def draw_energy_trail(img, trail_points):
         color = (int(255 * alpha), int(180 * alpha), int(255 * (1 - alpha)))
         cv2.circle(img, (int(pt[0]), int(pt[1])), r, color, cv2.FILLED, cv2.LINE_AA)
 
-def draw_glass_hud(img, mode_text, mode_color, fps, w_cam, h_cam, active_cam_name="Integrated", eye_enabled=True):
+def draw_glass_hud(img, mode_text, mode_color, fps, w_cam, h_cam, active_cam_name="Integrated", eye_enabled=True, ear_info=None, alert_text=None):
     """Render semi-transparent glassmorphic top header and bottom controls HUD"""
     overlay = img.copy()
     
@@ -176,9 +206,31 @@ def draw_glass_hud(img, mode_text, mode_color, fps, w_cam, h_cam, active_cam_nam
     # Right: Tech Diagnostics
     eye_label = "EYE: ON" if eye_enabled else "EYE: OFF"
     eye_color = (0, 255, 128) if eye_enabled else (120, 120, 120)
-    cv2.putText(img, f"FPS: {int(fps)}", (w_cam - 118, 18), cv2.FONT_HERSHEY_SIMPLEX, 0.36, (0, 255, 255), 1, cv2.LINE_AA)
-    cv2.putText(img, eye_label, (w_cam - 118, 32), cv2.FONT_HERSHEY_SIMPLEX, 0.36, eye_color, 1, cv2.LINE_AA)
-    cv2.putText(img, f"CAM: {active_cam_name}", (w_cam - 118, 46), cv2.FONT_HERSHEY_SIMPLEX, 0.33, (180, 180, 180), 1, cv2.LINE_AA)
+    cv2.putText(img, f"FPS: {int(fps)}", (w_cam - 110, 18), cv2.FONT_HERSHEY_SIMPLEX, 0.36, (0, 255, 255), 1, cv2.LINE_AA)
+    cv2.putText(img, eye_label, (w_cam - 110, 32), cv2.FONT_HERSHEY_SIMPLEX, 0.36, eye_color, 1, cv2.LINE_AA)
+    cv2.putText(img, f"CAM: {active_cam_name}", (w_cam - 110, 46), cv2.FONT_HERSHEY_SIMPLEX, 0.33, (180, 180, 180), 1, cv2.LINE_AA)
+
+    # Display Live EAR Diagnostics if eye tracking is enabled
+    if eye_enabled:
+        if ear_info is not None:
+            l_e, r_e, b_e, is_lw, is_rw = ear_info
+            l_col = (0, 255, 0) if is_lw else (220, 220, 220)
+            r_col = (0, 0, 255) if is_rw else (220, 220, 220)
+            ear_txt = f"EAR L:[{l_e:.2f}] R:[{r_e:.2f}]"
+            cv2.putText(img, ear_txt, (150, 46), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (0, 255, 220), 1, cv2.LINE_AA)
+        else:
+            cv2.putText(img, "EYE: NO FACE", (150, 46), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (0, 165, 255), 1, cv2.LINE_AA)
+
+    # Center Screen Alert Banner for Clicks
+    if alert_text:
+        alert_w = 260
+        ax1 = (w_cam - alert_w) // 2
+        ax2 = ax1 + alert_w
+        cv2.rectangle(img, (ax1, 62), (ax2, 92), (0, 30, 0) if "LEFT" in alert_text else (0, 0, 30), -1)
+        cv2.rectangle(img, (ax1, 62), (ax2, 92), (0, 255, 0) if "LEFT" in alert_text else (0, 0, 255), 2, cv2.LINE_AA)
+        a_size = cv2.getTextSize(alert_text, cv2.FONT_HERSHEY_SIMPLEX, 0.50, 1)[0]
+        atx = ax1 + (alert_w - a_size[0]) // 2
+        cv2.putText(img, alert_text, (atx, 82), cv2.FONT_HERSHEY_SIMPLEX, 0.50, (255, 255, 255), 1, cv2.LINE_AA)
 
     # Bottom Cheatsheet text
     shortcuts = "[Q] Exit  |  [B] Eye Click  |  [C] Cam  |  [+/-] Sens  |  [[ / ]] Smooth"
@@ -276,8 +328,9 @@ def main():
     l_wink_pressed = False
     r_wink_pressed = False
     blink_start_time = None
-    BLINK_HOLD_DURATION = 0.35
-    BLINK_RESET_EAR = 0.22
+    BLINK_HOLD_DURATION = 0.30
+    last_click_event = None
+    last_click_time = 0.0
 
     print_stylish_banner(w_screen, h_screen)
 
@@ -296,40 +349,52 @@ def main():
             mode_text = "IDLE // READY"
             mode_color = (180, 180, 180)
 
+            ear_info = None
+            alert_text = None
+
             # Eye Blink & Wink Detection (AI Vision)
             if eye_click_enabled:
                 face_detector.process(img)
-                left_ear, right_ear, is_l_wink, is_r_wink, is_both_blink, l_center, r_center = face_detector.get_eye_status(img, draw=True)
+                left_ear, right_ear, is_l_wink, is_r_wink, is_both_blink, l_center, r_center, base_ear = face_detector.get_eye_status(img, draw=True)
 
-                if is_l_wink:
-                    if not l_wink_pressed:
-                        pyautogui.click()
-                        l_wink_pressed = True
-                        mode_text = "EYE LEFT CLICK"
-                        mode_color = (0, 255, 0)
-                elif left_ear >= BLINK_RESET_EAR:
-                    l_wink_pressed = False
+                if l_center is not None and r_center is not None:
+                    ear_info = (left_ear, right_ear, base_ear, is_l_wink, is_r_wink)
 
-                if is_r_wink:
-                    if not r_wink_pressed:
-                        pyautogui.rightClick()
-                        r_wink_pressed = True
-                        mode_text = "EYE RIGHT CLICK"
-                        mode_color = (0, 0, 255)
-                elif right_ear >= BLINK_RESET_EAR:
-                    r_wink_pressed = False
+                    # Dynamic reopen reset
+                    reopen_thresh = base_ear * 0.78
+                    if left_ear >= reopen_thresh and not is_l_wink:
+                        l_wink_pressed = False
+                    if right_ear >= reopen_thresh and not is_r_wink:
+                        r_wink_pressed = False
 
-                if is_both_blink:
-                    if blink_start_time is None:
-                        blink_start_time = now
-                    elif (now - blink_start_time) >= BLINK_HOLD_DURATION and not l_wink_pressed:
-                        pyautogui.click()
-                        l_wink_pressed = True
+                    if is_l_wink:
+                        if not l_wink_pressed:
+                            hardware_left_click()
+                            l_wink_pressed = True
+                            last_click_event = "EYE LEFT CLICK"
+                            last_click_time = now
+                    elif is_r_wink:
+                        if not r_wink_pressed:
+                            hardware_right_click()
+                            r_wink_pressed = True
+                            last_click_event = "EYE RIGHT CLICK"
+                            last_click_time = now
+                    elif is_both_blink:
+                        if blink_start_time is None:
+                            blink_start_time = now
+                        elif (now - blink_start_time) >= BLINK_HOLD_DURATION and not l_wink_pressed:
+                            hardware_left_click()
+                            l_wink_pressed = True
+                            blink_start_time = None
+                            last_click_event = "EYE BLINK CLICK"
+                            last_click_time = now
+                    else:
                         blink_start_time = None
-                        mode_text = "EYE BLINK CLICK"
-                        mode_color = (0, 255, 128)
                 else:
                     blink_start_time = None
+
+            if last_click_event and (now - last_click_time < 0.65):
+                alert_text = last_click_event
 
             # Find Hand Landmarks with Cyberpunk styling
             img = detector.find_hands(img, draw=True)
@@ -429,7 +494,7 @@ def main():
                     scroll_anchor_y = None
                     cv2.circle(img, (int(line_pinch[4]), int(line_pinch[5])), 14, (0, 255, 0), cv2.FILLED, cv2.LINE_AA)
                     if not click_pressed:
-                        pyautogui.click()
+                        hardware_left_click()
                         click_pressed = True
                         mode_text = "LEFT CLICK"
                         mode_color = (0, 255, 0)
@@ -444,7 +509,7 @@ def main():
                     scroll_anchor_y = None
                     cv2.circle(img, (int(line_rc[4]), int(line_rc[5])), 12, (0, 0, 255), cv2.FILLED, cv2.LINE_AA)
                     if not rc_pressed:
-                        pyautogui.rightClick()
+                        hardware_right_click()
                         rc_pressed = True
                         mode_text = "RIGHT CLICK"
                         mode_color = (0, 0, 255)
@@ -512,7 +577,7 @@ def main():
 
             # Render Sci-Fi Glassmorphic HUD Overlays
             cam_label = "BUILT-IN" if cam_index == 1 else f"DEV_{cam_index}"
-            draw_glass_hud(img, mode_text, mode_color, fps, w_cam, h_cam, active_cam_name=cam_label, eye_enabled=eye_click_enabled)
+            draw_glass_hud(img, mode_text, mode_color, fps, w_cam, h_cam, active_cam_name=cam_label, eye_enabled=eye_click_enabled, ear_info=ear_info, alert_text=alert_text)
 
             cv2.imshow("AeroGlide-Vision // Holographic HUD", img)
 

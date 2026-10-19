@@ -11,22 +11,32 @@ import math
 class FaceEyeDetector:
     """
     Real-time Face & Eye tracking module using MediaPipe FaceMesh.
-    Calculates Eye Aspect Ratio (EAR) to detect intentional winks/blinks for mouse clicks.
+    Calculates 6-point Eye Aspect Ratio (EAR) with adaptive baseline tracking
+    to reliably detect intentional winks and blinks for mouse clicking.
     """
     def __init__(self, max_faces=1, detection_con=0.6, track_con=0.6):
         self.mp_face_mesh = mp.solutions.face_mesh
         self.face_mesh = self.mp_face_mesh.FaceMesh(
             max_num_faces=max_faces,
-            refine_landmarks=False,
+            refine_landmarks=True,
             min_detection_confidence=detection_con,
             min_tracking_confidence=track_con
         )
-        # Landmark indices for eyes
-        # Left Eye (in mirrored image): outer, inner, top, bottom
-        self.LEFT_EYE = [33, 133, 159, 145]
-        # Right Eye (in mirrored image): inner, outer, top, bottom
-        self.RIGHT_EYE = [362, 263, 386, 374]
+
+        # Standard MediaPipe 6-point landmarks for both eyes
+        # Anatomical Left Eye (User's Left Eye -> Left side on mirrored display)
+        self.L_CORNERS = (362, 263)
+        self.L_TOP = (386, 385, 387)
+        self.L_BOTTOM = (374, 380, 373)
+
+        # Anatomical Right Eye (User's Right Eye -> Right side on mirrored display)
+        self.R_CORNERS = (33, 133)
+        self.R_TOP = (159, 160, 158)
+        self.R_BOTTOM = (145, 144, 153)
+
         self.results = None
+        self.baseline_ear = 0.24
+        self.calibrated = False
 
     def process(self, img):
         if img is None or img.size == 0:
@@ -35,69 +45,93 @@ class FaceEyeDetector:
         self.results = self.face_mesh.process(img_rgb)
         return self.results
 
-    def get_eye_status(self, img, draw=True, blink_threshold=0.18):
+    def _calc_ear(self, face_lms, corner_indices, top_indices, bottom_indices, w, h):
+        c1 = (face_lms[corner_indices[0]].x * w, face_lms[corner_indices[0]].y * h)
+        c2 = (face_lms[corner_indices[1]].x * w, face_lms[corner_indices[1]].y * h)
+        h_dist = max(1.0, math.hypot(c1[0] - c2[0], c1[1] - c2[1]))
+
+        v_dists = []
+        for t_idx, b_idx in zip(top_indices, bottom_indices):
+            t = (face_lms[t_idx].x * w, face_lms[t_idx].y * h)
+            b = (face_lms[b_idx].x * w, face_lms[b_idx].y * h)
+            v_dists.append(math.hypot(t[0] - b[0], t[1] - b[1]))
+
+        ear = sum(v_dists) / (float(len(v_dists)) * h_dist)
+        center = (int((c1[0] + c2[0]) / 2), int((c1[1] + c2[1]) / 2))
+        return ear, center
+
+    def get_eye_status(self, img, draw=True):
         """
-        Calculates Eye Aspect Ratio (EAR) for both eyes.
+        Calculates EAR for both eyes with adaptive baseline calibration.
         Returns:
-            left_ear, right_ear, is_left_wink, is_right_wink, (l_cx, l_cy), (r_cx, r_cy)
+            left_ear, right_ear, is_left_wink, is_right_wink, is_both_blink, l_center, r_center, baseline_ear
         """
         if not self.results or not self.results.multi_face_landmarks:
-            return 0.3, 0.3, False, False, None, None
+            return 0.25, 0.25, False, False, False, None, None, self.baseline_ear
 
         h, w, _ = img.shape
         face_lms = self.results.multi_face_landmarks[0].landmark
 
-        # Left Eye Landmarks
-        l_corner1 = (face_lms[self.LEFT_EYE[0]].x * w, face_lms[self.LEFT_EYE[0]].y * h)
-        l_corner2 = (face_lms[self.LEFT_EYE[1]].x * w, face_lms[self.LEFT_EYE[1]].y * h)
-        l_top = (face_lms[self.LEFT_EYE[2]].x * w, face_lms[self.LEFT_EYE[2]].y * h)
-        l_bottom = (face_lms[self.LEFT_EYE[3]].x * w, face_lms[self.LEFT_EYE[3]].y * h)
+        ear_a, center_a = self._calc_ear(face_lms, self.L_CORNERS, self.L_TOP, self.L_BOTTOM, w, h)
+        ear_b, center_b = self._calc_ear(face_lms, self.R_CORNERS, self.R_TOP, self.R_BOTTOM, w, h)
 
-        # Right Eye Landmarks
-        r_corner1 = (face_lms[self.RIGHT_EYE[0]].x * w, face_lms[self.RIGHT_EYE[0]].y * h)
-        r_corner2 = (face_lms[self.RIGHT_EYE[1]].x * w, face_lms[self.RIGHT_EYE[1]].y * h)
-        r_top = (face_lms[self.RIGHT_EYE[2]].x * w, face_lms[self.RIGHT_EYE[2]].y * h)
-        r_bottom = (face_lms[self.RIGHT_EYE[3]].x * w, face_lms[self.RIGHT_EYE[3]].y * h)
+        # Geometrically map left-side eye to left_ear and right-side eye to right_ear
+        if center_a[0] <= center_b[0]:
+            left_ear, l_center = ear_a, center_a
+            right_ear, r_center = ear_b, center_b
+        else:
+            left_ear, l_center = ear_b, center_b
+            right_ear, r_center = ear_a, center_a
 
-        # Left Eye EAR
-        l_h_dist = max(1.0, math.hypot(l_corner1[0] - l_corner2[0], l_corner1[1] - l_corner2[1]))
-        l_v_dist = math.hypot(l_top[0] - l_bottom[0], l_top[1] - l_bottom[1])
-        left_ear = l_v_dist / l_h_dist
+        # Adaptive baseline update when eyes are comfortably open and symmetric
+        if abs(left_ear - right_ear) < 0.05 and left_ear > 0.16 and right_ear > 0.16:
+            current_open = (left_ear + right_ear) / 2.0
+            if not self.calibrated:
+                self.baseline_ear = current_open
+                self.calibrated = True
+            else:
+                self.baseline_ear = 0.96 * self.baseline_ear + 0.04 * current_open
+                self.baseline_ear = max(0.18, min(0.36, self.baseline_ear))
 
-        # Right Eye EAR
-        r_h_dist = max(1.0, math.hypot(r_corner1[0] - r_corner2[0], r_corner1[1] - r_corner2[1]))
-        r_v_dist = math.hypot(r_top[0] - r_bottom[0], r_top[1] - r_bottom[1])
-        right_ear = r_v_dist / r_h_dist
+        # Dynamic thresholds based on user's calibrated baseline
+        wink_threshold = self.baseline_ear * 0.70
+        open_threshold = self.baseline_ear * 0.82
+        wink_ratio = 0.75
 
-        l_center = (int((l_corner1[0] + l_corner2[0]) / 2), int((l_top[1] + l_bottom[1]) / 2))
-        r_center = (int((r_corner1[0] + r_corner2[0]) / 2), int((r_top[1] + r_bottom[1]) / 2))
+        # Detect Winks (one eye closed, the other open)
+        is_left_wink = (
+            (left_ear < wink_threshold or left_ear < right_ear * wink_ratio)
+            and right_ear >= open_threshold
+        )
+        is_right_wink = (
+            (right_ear < wink_threshold or right_ear < left_ear * wink_ratio)
+            and left_ear >= open_threshold
+        )
 
-        # Intentional Wink detection (one eye closed while the other eye is open)
-        # and full blink detection (both eyes closed)
-        is_left_wink = (left_ear < blink_threshold and right_ear >= (blink_threshold + 0.05))
-        is_right_wink = (right_ear < blink_threshold and left_ear >= (blink_threshold + 0.05))
-        is_both_blink = (left_ear < blink_threshold and right_ear < blink_threshold)
+        # Detect Both Eyes Blink
+        is_both_blink = (left_ear < wink_threshold and right_ear < wink_threshold)
 
         if draw and img is not None:
-            # Sci-Fi Hologram Eye Rings
-            # Left Eye: Green pulse on left wink, cyan when open
+            # Draw Sci-Fi Eye Reticles
             l_color = (0, 255, 0) if is_left_wink else ((0, 165, 255) if is_both_blink else (255, 220, 0))
-            cv2.circle(img, l_center, 12, l_color, 1, cv2.LINE_AA)
-            if is_left_wink:
-                cv2.circle(img, l_center, 6, (0, 255, 0), cv2.FILLED, cv2.LINE_AA)
-                cv2.putText(img, "L-WINK", (l_center[0] - 25, l_center[1] - 16),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.40, (0, 255, 0), 1, cv2.LINE_AA)
-
-            # Right Eye: Red pulse on right wink, cyan when open
             r_color = (0, 0, 255) if is_right_wink else ((0, 165, 255) if is_both_blink else (255, 220, 0))
-            cv2.circle(img, r_center, 12, r_color, 1, cv2.LINE_AA)
+
+            # Left Eye Reticle
+            cv2.circle(img, l_center, 14, l_color, 1, cv2.LINE_AA)
+            if is_left_wink:
+                cv2.circle(img, l_center, 8, (0, 255, 0), cv2.FILLED, cv2.LINE_AA)
+                cv2.putText(img, "L-WINK CLICK", (l_center[0] - 45, l_center[1] - 18),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 255, 0), 1, cv2.LINE_AA)
+
+            # Right Eye Reticle
+            cv2.circle(img, r_center, 14, r_color, 1, cv2.LINE_AA)
             if is_right_wink:
-                cv2.circle(img, r_center, 6, (0, 0, 255), cv2.FILLED, cv2.LINE_AA)
-                cv2.putText(img, "R-WINK", (r_center[0] - 25, r_center[1] - 16),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.40, (0, 0, 255), 1, cv2.LINE_AA)
+                cv2.circle(img, r_center, 8, (0, 0, 255), cv2.FILLED, cv2.LINE_AA)
+                cv2.putText(img, "R-WINK CLICK", (r_center[0] - 45, r_center[1] - 18),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 0, 255), 1, cv2.LINE_AA)
 
             if is_both_blink:
-                cv2.circle(img, l_center, 5, (0, 165, 255), cv2.FILLED, cv2.LINE_AA)
-                cv2.circle(img, r_center, 5, (0, 165, 255), cv2.FILLED, cv2.LINE_AA)
+                cv2.circle(img, l_center, 6, (0, 165, 255), cv2.FILLED, cv2.LINE_AA)
+                cv2.circle(img, r_center, 6, (0, 165, 255), cv2.FILLED, cv2.LINE_AA)
 
-        return left_ear, right_ear, is_left_wink, is_right_wink, is_both_blink, l_center, r_center
+        return left_ear, right_ear, is_left_wink, is_right_wink, is_both_blink, l_center, r_center, self.baseline_ear
