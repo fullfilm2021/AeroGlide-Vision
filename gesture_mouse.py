@@ -27,6 +27,7 @@ pyautogui.PAUSE = 0.001
 
 import winsound
 import threading
+# pyrefly: ignore[missing-import]
 import pystray
 from PIL import Image, ImageDraw
 import win32gui
