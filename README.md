@@ -53,5 +53,5 @@ python gesture_mouse.py
 ## Features
 - **Adaptive Cursor Filter & Deadzone**: Cancels hand micro-tremors when pointing while preserving high-speed swipe responsiveness.
 - **Hysteresis Latch Clicking**: Instantaneous click upon touch with zero accidental repeated firing.
-- **AI Eye Blink & Wink Trigger**: FaceMesh-powered Eye Aspect Ratio (EAR) detector allows hands-free clicking by winking or intentional blinking.
+- **AI Eye Wink Trigger**: FaceMesh-powered Eye Aspect Ratio (EAR) detector allows hands-free clicking by winking (Right Eye for Left Click, Left Eye for Right Click).
 - **Auto-Detect Laptop Camera**: Automatically prioritizes built-in integrated webcams over virtual camera drivers (such as Iriun, OBS).
