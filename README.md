@@ -35,7 +35,6 @@ python gesture_mouse.py
 | **Fist Clench (Hold 0.5s)** | **Lock Screen** | Make a tight fist to trigger instant Windows workstation lock (`Win + L`). A red HUD ring confirms before locking. |
 | **Right Eye Wink** | **Eye Left Click** | Wink right eye to instantly trigger a left mouse click (Primary click). |
 | **Left Eye Wink** | **Eye Right Click** | Wink left eye to trigger a right mouse click. |
-| **Intentional Blink (0.30s)** | **Eye Left Click** | Close both eyes intentionally for >0.30s to left click (prevents accidental 0.15s natural blinks). |
 | **Key 'b'** | **Toggle Eye Click** | Enable or disable eye blink clicking in real-time. |
 | **Key '+' or '-'** | **Sensitivity** | Increase or decrease cursor sensitivity in real-time. |
 | **Key '[' or ']'** | **Smoothness** | Adjust cursor smoothing (`[` for smoother, `]` for faster response). |

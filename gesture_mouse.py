@@ -260,7 +260,6 @@ def print_stylish_banner(w_screen, h_screen):
   * Fist Clench (hold 0.5s)            -> Screen Lock (Win + L)
   * Right Eye Wink                     -> Instant Left Click (Primary)
   * Left Eye Wink                      -> Instant Right Click
-  * Intentional Blink (both 0.30s)     -> Left Click
 
   KEYBOARD SHORTCUTS:
   * 'b'                                -> Toggle Eye Blink Click (ON/OFF)
@@ -327,8 +326,6 @@ def main():
     eye_click_enabled = True
     l_wink_pressed = False
     r_wink_pressed = False
-    blink_start_time = None
-    BLINK_HOLD_DURATION = 0.30
     last_click_event = None
     last_click_time = 0.0
 
@@ -381,19 +378,6 @@ def main():
                             l_wink_pressed = True
                             last_click_event = "EYE RIGHT CLICK"
                             last_click_time = now
-                    elif is_both_blink:
-                        if blink_start_time is None:
-                            blink_start_time = now
-                        elif (now - blink_start_time) >= BLINK_HOLD_DURATION and not r_wink_pressed and not l_wink_pressed:
-                            hardware_left_click()
-                            r_wink_pressed = True
-                            blink_start_time = None
-                            last_click_event = "EYE BLINK CLICK"
-                            last_click_time = now
-                    else:
-                        blink_start_time = None
-                else:
-                    blink_start_time = None
 
             if last_click_event and (now - last_click_time < 0.65):
                 alert_text = last_click_event

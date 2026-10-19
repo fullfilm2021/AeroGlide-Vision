@@ -108,15 +108,12 @@ class FaceEyeDetector:
             and left_ear >= open_threshold
         )
 
-        # Detect Both Eyes Blink
-        is_both_blink = (left_ear < wink_threshold and right_ear < wink_threshold)
-
         if draw and img is not None:
             # Draw Sci-Fi Eye Reticles
             # Right Eye Wink triggers Left Click (Green)
             # Left Eye Wink triggers Right Click (Red)
-            r_color = (0, 255, 0) if is_right_wink else ((0, 165, 255) if is_both_blink else (255, 220, 0))
-            l_color = (0, 0, 255) if is_left_wink else ((0, 165, 255) if is_both_blink else (255, 220, 0))
+            r_color = (0, 255, 0) if is_right_wink else (255, 220, 0)
+            l_color = (0, 0, 255) if is_left_wink else (255, 220, 0)
 
             # Right Eye Reticle (Primary Click)
             cv2.circle(img, r_center, 14, r_color, 1, cv2.LINE_AA)
@@ -132,8 +129,4 @@ class FaceEyeDetector:
                 cv2.putText(img, "L-WINK [RIGHT CLICK]", (l_center[0] - 55, l_center[1] - 18),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 0, 255), 1, cv2.LINE_AA)
 
-            if is_both_blink:
-                cv2.circle(img, l_center, 6, (0, 165, 255), cv2.FILLED, cv2.LINE_AA)
-                cv2.circle(img, r_center, 6, (0, 165, 255), cv2.FILLED, cv2.LINE_AA)
-
-        return left_ear, right_ear, is_left_wink, is_right_wink, is_both_blink, l_center, r_center, self.baseline_ear
+        return left_ear, right_ear, is_left_wink, is_right_wink, False, l_center, r_center, self.baseline_ear
