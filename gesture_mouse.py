@@ -27,6 +27,21 @@ pyautogui.PAUSE = 0.001
 
 import winsound
 import threading
+import pystray
+from PIL import Image, ImageDraw
+import win32gui
+import win32con
+
+WINDOW_TITLE = "AeroGlide-Vision // Holographic HUD"
+
+def create_tray_image():
+    """Generate 64x64 cyberpunk tray icon with glowing green reticle"""
+    img = Image.new('RGBA', (64, 64), color=(0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    d.ellipse((4, 4, 60, 60), fill=(18, 22, 34), outline=(0, 255, 128), width=3)
+    d.ellipse((20, 20, 44, 44), fill=(0, 255, 128))
+    d.ellipse((28, 28, 36, 36), fill=(18, 22, 34))
+    return img
 
 def trigger_audio_click():
     """Non-blocking subtle audio click sound"""
@@ -235,7 +250,7 @@ def draw_glass_hud(img, mode_text, mode_color, fps, w_cam, h_cam, active_cam_nam
         cv2.putText(img, alert_text, (atx, 82), cv2.FONT_HERSHEY_SIMPLEX, 0.50, (255, 255, 255), 1, cv2.LINE_AA)
 
     # Bottom Cheatsheet text
-    shortcuts = "[Q] Exit  |  [B] Eye Click  |  [C] Cam  |  [+/-] Sens  |  [[ / ]] Smooth"
+    shortcuts = "[Q] Exit  |  [H] Hide Tray  |  [B] Eye Click  |  [C] Cam  |  [+/-] Sens"
     cv2.putText(img, shortcuts, (15, h_cam - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.38, (190, 190, 190), 1, cv2.LINE_AA)
 
 def print_stylish_banner(w_screen, h_screen):
@@ -264,6 +279,7 @@ def print_stylish_banner(w_screen, h_screen):
   * Left Eye Wink                      -> Instant Right Click
 
   KEYBOARD SHORTCUTS:
+  * 'h'                                -> Hide Camera Window to System Tray
   * 'b'                                -> Toggle Eye Blink Click (ON/OFF)
   * '+' / '-'                          -> Adjust Screen Sensitivity
   * '[' / ']'                          -> Adjust Smoothing & Speed
@@ -331,9 +347,58 @@ def main():
     last_click_event = None
     last_click_time = 0.0
 
+    hud_visible = True
+    app_running = True
+
+    def show_hud(icon=None, item=None):
+        nonlocal hud_visible
+        hud_visible = True
+        hwnd = win32gui.FindWindow(None, WINDOW_TITLE)
+        if hwnd:
+            win32gui.ShowWindow(hwnd, win32con.SW_SHOW)
+            try:
+                win32gui.SetForegroundWindow(hwnd)
+            except Exception:
+                pass
+
+    def hide_hud(icon=None, item=None):
+        nonlocal hud_visible
+        hud_visible = False
+        hwnd = win32gui.FindWindow(None, WINDOW_TITLE)
+        if hwnd:
+            win32gui.ShowWindow(hwnd, win32con.SW_HIDE)
+            try:
+                if icon:
+                    icon.notify("AeroGlide-Vision minimized to System Tray. Gestures are still active!", "AeroGlide-Vision")
+            except Exception:
+                pass
+
+    def toggle_eye(icon=None, item=None):
+        nonlocal eye_click_enabled
+        eye_click_enabled = not eye_click_enabled
+        status_txt = "ENABLED" if eye_click_enabled else "DISABLED"
+        print(f"[HUD] Eye Blink Click: {status_txt}")
+
+    def exit_app(icon=None, item=None):
+        nonlocal app_running
+        app_running = False
+        if icon:
+            icon.stop()
+
+    tray_menu = pystray.Menu(
+        pystray.MenuItem("Show Camera HUD", show_hud, default=True),
+        pystray.MenuItem("Hide Camera HUD", hide_hud),
+        pystray.MenuItem("Toggle Eye Click", toggle_eye),
+        pystray.Menu.SEPARATOR,
+        pystray.MenuItem("Exit AeroGlide", exit_app)
+    )
+    tray_icon = pystray.Icon("AeroGlide", create_tray_image(), "AeroGlide-Vision // AI Mouse", tray_menu)
+    tray_icon.run_detached()
+
+    cv2.namedWindow(WINDOW_TITLE)
     print_stylish_banner(w_screen, h_screen)
 
-    while True:
+    while app_running:
         try:
             success, img = cap.read()
             if not success or img is None or img.size == 0:
@@ -565,41 +630,43 @@ def main():
 
             # Render Sci-Fi Glassmorphic HUD Overlays
             cam_label = "BUILT-IN" if cam_index == 1 else f"DEV_{cam_index}"
-            draw_glass_hud(img, mode_text, mode_color, fps, w_cam, h_cam, active_cam_name=cam_label, eye_enabled=eye_click_enabled, ear_info=ear_info, alert_text=alert_text)
+            if hud_visible:
+                draw_glass_hud(img, mode_text, mode_color, fps, w_cam, h_cam, active_cam_name=cam_label, eye_enabled=eye_click_enabled, ear_info=ear_info, alert_text=alert_text)
+                cv2.imshow(WINDOW_TITLE, img)
 
-            cv2.imshow("AeroGlide-Vision // Holographic HUD", img)
-
-            # Keyboard Controls
-            key = cv2.waitKey(1) & 0xFF
-            if key == ord('q'):
-                break
-            elif key == ord('b'):
-                eye_click_enabled = not eye_click_enabled
-                status_txt = "ENABLED" if eye_click_enabled else "DISABLED"
-                print(f"[HUD] Eye Blink Click: {status_txt}")
-            elif key == ord('c'):
-                cap.release()
-                cam_index = (cam_index + 1) % 3
-                print(f"Switching camera -> Index: {cam_index}")
-                cap = cv2.VideoCapture(cam_index, cv2.CAP_DSHOW)
-                cap.set(3, w_cam)
-                cap.set(4, h_cam)
-            elif key in [ord('+'), ord('=')]:
-                margin_x = min(margin_x + 10, 220)
-                margin_bottom = min(margin_bottom + 10, 200)
-                print(f"[HUD] Sensitivity Increased: MarginX={margin_x}, MarginBottom={margin_bottom}")
-            elif key in [ord('-'), ord('_')]:
-                margin_x = max(margin_x - 10, 80)
-                margin_bottom = max(margin_bottom - 10, 80)
-                print(f"[HUD] Sensitivity Decreased: MarginX={margin_x}, MarginBottom={margin_bottom}")
-            elif key == ord('['):
-                cursor_filter.base_smooth = max(cursor_filter.base_smooth - 0.03, 0.06)
-                cursor_filter.deadzone = min(cursor_filter.deadzone + 0.5, 6.0)
-                print(f"[HUD] Smooth Mode: Smooth={cursor_filter.base_smooth:.2f}, Deadzone={cursor_filter.deadzone}")
-            elif key == ord(']'):
-                cursor_filter.base_smooth = min(cursor_filter.base_smooth + 0.03, 0.35)
-                cursor_filter.deadzone = max(cursor_filter.deadzone - 0.5, 1.5)
-                print(f"[HUD] Fast Response: Smooth={cursor_filter.base_smooth:.2f}, Deadzone={cursor_filter.deadzone}")
+                # Keyboard Controls
+                key = cv2.waitKey(1) & 0xFF
+                if key == ord('q'):
+                    break
+                elif key == ord('h'):
+                    hide_hud(tray_icon)
+                elif key == ord('b'):
+                    toggle_eye()
+                elif key == ord('c'):
+                    cap.release()
+                    cam_index = (cam_index + 1) % 3
+                    print(f"Switching camera -> Index: {cam_index}")
+                    cap = cv2.VideoCapture(cam_index, cv2.CAP_DSHOW)
+                    cap.set(3, w_cam)
+                    cap.set(4, h_cam)
+                elif key in [ord('+'), ord('=')]:
+                    margin_x = min(margin_x + 10, 220)
+                    margin_bottom = min(margin_bottom + 10, 200)
+                    print(f"[HUD] Sensitivity Increased: MarginX={margin_x}, MarginBottom={margin_bottom}")
+                elif key in [ord('-'), ord('_')]:
+                    margin_x = max(margin_x - 10, 80)
+                    margin_bottom = max(margin_bottom - 10, 80)
+                    print(f"[HUD] Sensitivity Decreased: MarginX={margin_x}, MarginBottom={margin_bottom}")
+                elif key == ord('['):
+                    cursor_filter.base_smooth = max(cursor_filter.base_smooth - 0.03, 0.06)
+                    cursor_filter.deadzone = min(cursor_filter.deadzone + 0.5, 6.0)
+                    print(f"[HUD] Smooth Mode: Smooth={cursor_filter.base_smooth:.2f}, Deadzone={cursor_filter.deadzone}")
+                elif key == ord(']'):
+                    cursor_filter.base_smooth = min(cursor_filter.base_smooth + 0.03, 0.35)
+                    cursor_filter.deadzone = max(cursor_filter.deadzone - 0.5, 1.5)
+                    print(f"[HUD] Fast Response: Smooth={cursor_filter.base_smooth:.2f}, Deadzone={cursor_filter.deadzone}")
+            else:
+                time.sleep(0.005)
 
         except Exception as loop_err:
             print(f"HUD loop warning: {loop_err}")
@@ -607,6 +674,10 @@ def main():
 
     cap.release()
     cv2.destroyAllWindows()
+    try:
+        tray_icon.stop()
+    except Exception:
+        pass
     print("AeroGlide-Vision terminated gracefully.")
 
 if __name__ == "__main__":

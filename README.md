@@ -4,12 +4,12 @@
 
 ## Requirements
 - Python 3.9+ (Python 3.11 recommended)
-- Dependencies: `opencv-python`, `mediapipe==0.10.14`, `pyautogui`, `numpy`, `pygrabber`
+- Dependencies: `opencv-python`, `mediapipe==0.10.14`, `pyautogui`, `numpy`, `pygrabber`, `pystray`, `Pillow`
 
 ## Installation
 Install dependencies via pip:
 ```bash
-pip install opencv-python mediapipe==0.10.14 pyautogui numpy pygrabber
+pip install opencv-python mediapipe==0.10.14 pyautogui numpy pygrabber pystray Pillow
 ```
 
 ## How to Run
@@ -35,6 +35,7 @@ python gesture_mouse.py
 | **Fist Clench (Hold 0.5s)** | **Lock Screen** | Make a tight fist to trigger instant Windows workstation lock (`Win + L`). A red HUD ring confirms before locking. |
 | **Right Eye Wink** | **Eye Left Click** | Wink right eye to instantly trigger a left mouse click (Primary click). |
 | **Left Eye Wink** | **Eye Right Click** | Wink left eye to trigger a right mouse click. |
+| **Key 'h'** | **Hide to Tray** | Hide camera window to Windows System Tray. Click tray icon to restore. Hand & eye gestures stay active! |
 | **Key 'b'** | **Toggle Eye Click** | Enable or disable eye blink clicking in real-time. |
 | **Key '+' or '-'** | **Sensitivity** | Increase or decrease cursor sensitivity in real-time. |
 | **Key '[' or ']'** | **Smoothness** | Adjust cursor smoothing (`[` for smoother, `]` for faster response). |
