@@ -146,7 +146,7 @@ def main():
     detector = HandDetector(max_hands=1, detection_con=0.7, track_con=0.7)
 
     print("=" * 65)
-    print("Hand Gesture Mouse Controller - Fixed State Machine Edition")
+    print("AeroGlide-Vision: AI Hand Gesture Virtual Mouse")
     print("-----------------------------------------------------------------")
     print(f"Screen Resolution: {w_screen} x {h_screen}")
     print("1. Index finger up only             -> Move Cursor")
@@ -331,7 +331,7 @@ def main():
             cv2.putText(img, f"Mode: {mode_text}", (130, 33), cv2.FONT_HERSHEY_SIMPLEX, 0.65, mode_color, 2)
             cv2.putText(img, "Q: Exit", (540, 33), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (180, 180, 180), 1)
 
-            cv2.imshow("Hand Gesture Mouse - Laptop Camera", img)
+            cv2.imshow("AeroGlide-Vision - Hand Gesture Controller", img)
 
             # Keyboard Controls
             key = cv2.waitKey(1) & 0xFF

@@ -1,6 +1,6 @@
-# Hand Gesture Mouse Controller
+# AeroGlide-Vision 🖐️⚡
 
-A real-time AI-powered virtual mouse controller using laptop webcam and hand tracking. Control the mouse cursor, click, scroll, and manage tasks purely through hand gestures.
+**AeroGlide-Vision** is a next-generation AI-powered hand gesture virtual mouse and holographic cursor controller built with Python, OpenCV, and MediaPipe. Control your computer mouse, click, and scroll smoothly in the air without touching any hardware.
 
 ## Requirements
 - Python 3.9+ (Python 3.11 recommended)
