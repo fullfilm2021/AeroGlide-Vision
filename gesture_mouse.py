@@ -258,9 +258,9 @@ def print_stylish_banner(w_screen, h_screen):
   * Index + Middle fingers up          -> Smooth Scroll (Up / Down)
   * Thumb + Middle pinch (Middle UP)   -> Right Click
   * Fist Clench (hold 0.5s)            -> Screen Lock (Win + L)
-  * Left Eye Wink                      -> Instant Left Click
-  * Right Eye Wink                     -> Instant Right Click
-  * Intentional Blink (both 0.35s)     -> Left Click
+  * Right Eye Wink                     -> Instant Left Click (Primary)
+  * Left Eye Wink                      -> Instant Right Click
+  * Intentional Blink (both 0.30s)     -> Left Click
 
   KEYBOARD SHORTCUTS:
   * 'b'                                -> Toggle Eye Blink Click (ON/OFF)
@@ -367,24 +367,26 @@ def main():
                     if right_ear >= reopen_thresh and not is_r_wink:
                         r_wink_pressed = False
 
-                    if is_l_wink:
-                        if not l_wink_pressed:
+                    # Right Eye Wink -> Instant Left Click (Comfortable single-eye wink)
+                    if is_r_wink:
+                        if not r_wink_pressed:
                             hardware_left_click()
-                            l_wink_pressed = True
+                            r_wink_pressed = True
                             last_click_event = "EYE LEFT CLICK"
                             last_click_time = now
-                    elif is_r_wink:
-                        if not r_wink_pressed:
+                    # Left Eye Wink -> Right Click
+                    elif is_l_wink:
+                        if not l_wink_pressed:
                             hardware_right_click()
-                            r_wink_pressed = True
+                            l_wink_pressed = True
                             last_click_event = "EYE RIGHT CLICK"
                             last_click_time = now
                     elif is_both_blink:
                         if blink_start_time is None:
                             blink_start_time = now
-                        elif (now - blink_start_time) >= BLINK_HOLD_DURATION and not l_wink_pressed:
+                        elif (now - blink_start_time) >= BLINK_HOLD_DURATION and not r_wink_pressed and not l_wink_pressed:
                             hardware_left_click()
-                            l_wink_pressed = True
+                            r_wink_pressed = True
                             blink_start_time = None
                             last_click_event = "EYE BLINK CLICK"
                             last_click_time = now
